@@ -4,7 +4,7 @@ import requests
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import json
-from urllib.parse import parse_qs
+from http.server import BaseHTTPRequestHandler
 
 DISCORD_PUBLIC_KEY = os.environ.get('DISCORD_PUBLIC_KEY')
 METAFORGE_API = 'https://metaforge.app/api/arc-raiders/events-schedule'
@@ -100,41 +100,44 @@ def format_map_status():
     return '\n'.join(lines)
 
 
-def handler(environ, start_response):
-    """Vercel WSGI handler"""
-    method = environ.get('REQUEST_METHOD', 'GET')
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write('Discord bot is running'.encode('utf-8'))
+        return
 
-    if method == 'GET':
-        start_response('200 OK', [('Content-Type', 'text/plain')])
-        return [b'Discord bot is running']
-
-    if method == 'POST':
-        headers = {
-            key[5:].replace('_', '-'): value
-            for key, value in environ.items()
-            if key.startswith('HTTP_')
-        }
-
-        signature = headers.get('X-SIGNATURE-ED25519')
-        timestamp = headers.get('X-SIGNATURE-TIMESTAMP')
+    def do_POST(self):
+        signature = self.headers.get('X-Signature-Ed25519')
+        timestamp = self.headers.get('X-Signature-Timestamp')
 
         if not signature or not timestamp:
-            start_response('401 Unauthorized', [('Content-Type', 'text/plain')])
-            return [b'Missing signature headers']
+            self.send_response(401)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write('Missing signature headers'.encode('utf-8'))
+            return
 
-        content_length = int(environ.get('CONTENT_LENGTH', 0))
-        body = environ['wsgi.input'].read(content_length).decode('utf-8')
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
 
         if not verify_discord_signature(signature, timestamp, body):
-            start_response('401 Unauthorized', [('Content-Type', 'text/plain')])
-            return [b'Invalid signature']
+            self.send_response(401)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write('Invalid signature'.encode('utf-8'))
+            return
 
         interaction = json.loads(body)
 
         if interaction['type'] == 1:
             response = json.dumps({'type': 1})
-            start_response('200 OK', [('Content-Type', 'application/json')])
-            return [response.encode('utf-8')]
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(response.encode('utf-8'))
+            return
 
         if interaction['type'] == 2:
             if interaction['data']['name'] == 'mapstatus':
@@ -145,11 +148,14 @@ def handler(environ, start_response):
                         'content': message
                     }
                 })
-                start_response('200 OK', [('Content-Type', 'application/json')])
-                return [response.encode('utf-8')]
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(response.encode('utf-8'))
+                return
 
-        start_response('400 Bad Request', [('Content-Type', 'application/json')])
-        return [json.dumps({'error': 'Unknown interaction type'}).encode('utf-8')]
-
-    start_response('405 Method Not Allowed', [('Content-Type', 'text/plain')])
-    return [b'Method not allowed']
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'error': 'Unknown interaction type'}).encode('utf-8'))
+        return
