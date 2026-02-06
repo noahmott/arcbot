@@ -83,10 +83,13 @@ def format_map_status():
             if event['endTime'] == active_events[0]['endTime']:
                 active_group.append(event)
 
-        active_text = '\n'.join([f"**{event['name']}** - {event['map']}" for event in active_group])
+        active_lines = []
+        for event in active_group:
+            active_lines.append(f"**{event['name']}** - {event['map']}")
+
         fields.append({
-            'name': f'ACTIVE NOW (ends <t:{end_time_seconds}:R>)',
-            'value': active_text,
+            'name': f'🟢 ACTIVE NOW (ends <t:{end_time_seconds}:R>)',
+            'value': '\n'.join(active_lines),
             'inline': False
         })
 
@@ -98,10 +101,13 @@ def format_map_status():
             if event['startTime'] == upcoming_events[0]['startTime']:
                 next_group.append(event)
 
-        upcoming_text = '\n'.join([f"**{event['name']}** - {event['map']}" for event in next_group])
+        upcoming_lines = []
+        for event in next_group:
+            upcoming_lines.append(f"**{event['name']}** - {event['map']}")
+
         fields.append({
-            'name': f'UP NEXT (starts <t:{start_time_seconds}:R>)',
-            'value': upcoming_text,
+            'name': f'⏭️ UP NEXT (starts <t:{start_time_seconds}:R>)',
+            'value': '\n'.join(upcoming_lines),
             'inline': False
         })
 
@@ -114,17 +120,21 @@ def format_map_status():
             }]
         }
 
-    thumbnail_url = active_events[0]['icon'] if active_events else (upcoming_events[0]['icon'] if upcoming_events else None)
+    first_event = active_events[0] if active_events else (upcoming_events[0] if upcoming_events else None)
 
     embed = {
         'title': 'Arc Raiders Map Events',
-        'color': 0x00FF00 if active_events else 0xFFAA00,
+        'color': 0x00D9FF,
         'fields': fields,
+        'footer': {
+            'text': 'Data from MetaForge.app',
+            'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
+        },
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
     }
 
-    if thumbnail_url:
-        embed['thumbnail'] = {'url': thumbnail_url}
+    if first_event and first_event.get('icon'):
+        embed['thumbnail'] = {'url': first_event['icon']}
 
     return {'embeds': [embed]}
 
