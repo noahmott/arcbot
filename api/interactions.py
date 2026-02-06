@@ -47,7 +47,7 @@ def get_events():
 
 
 def format_map_status():
-    """Format events into a single beautiful Discord embed"""
+    """Format events into Discord embed with clean list format"""
     events = get_events()
 
     if not events:
@@ -82,7 +82,7 @@ def format_map_status():
             }]
         }
 
-    fields = []
+    description = ""
 
     if active_events:
         end_time_seconds = active_events[0]['endTime'] // 1000
@@ -92,12 +92,9 @@ def format_map_status():
             if event['endTime'] == active_events[0]['endTime']:
                 active_group.append(event)
 
+        description += f"🟢 **ACTIVE NOW (ends <t:{end_time_seconds}:R>)**\n"
         for event in active_group:
-            fields.append({
-                'name': f"{event['name']}",
-                'value': f"📍 {event['map']}\n⏰ Ends <t:{end_time_seconds}:R>",
-                'inline': True
-            })
+            description += f"**{event['name']}** - {event['map']}\n"
 
     if upcoming_events:
         start_time_seconds = upcoming_events[0]['startTime'] // 1000
@@ -108,37 +105,21 @@ def format_map_status():
                 next_group.append(event)
 
         if active_events:
-            fields.append({'name': '\u200b', 'value': '\u200b', 'inline': False})
+            description += "\n"
 
+        description += f"⏭️ **UP NEXT (starts <t:{start_time_seconds}:R>)**\n"
         for event in next_group:
-            fields.append({
-                'name': f"{event['name']}",
-                'value': f"📍 {event['map']}\n⏰ Starts <t:{start_time_seconds}:R>",
-                'inline': True
-            })
+            description += f"**{event['name']}** - {event['map']}\n"
 
-    first_active = active_events[0] if active_events else None
-    first_upcoming = upcoming_events[0] if upcoming_events else None
-    main_event = first_active if first_active else first_upcoming
-
-    description = ""
-    if active_events:
-        description += "🟢 **ACTIVE NOW**\n"
-    if upcoming_events:
-        if active_events:
-            description += "\n⏭️ **UP NEXT**"
-        else:
-            description += "⏭️ **UP NEXT**"
+    first_event = active_events[0] if active_events else (upcoming_events[0] if upcoming_events else None)
 
     embed = {
-        'title': '🎯 Arc Raiders Map Events',
-        'description': description,
+        'title': 'Arc Raiders Map Events',
+        'description': description.strip(),
         'color': 0x00D9FF,
-        'fields': fields,
-        'thumbnail': {'url': main_event['icon']} if main_event else None,
+        'thumbnail': {'url': first_event['icon']} if first_event else None,
         'footer': {
-            'text': 'Data from MetaForge.app',
-            'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
+            'text': 'Data from MetaForge.app'
         },
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
     }
