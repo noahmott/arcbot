@@ -47,11 +47,17 @@ def get_events():
 
 
 def format_map_status():
-    """Format events into Discord message"""
+    """Format events into Discord embed"""
     events = get_events()
 
     if not events:
-        return 'Unable to fetch event data. Please try again later.'
+        return {
+            'embeds': [{
+                'title': 'Arc Raiders Map Events',
+                'description': 'Unable to fetch event data. Please try again later.',
+                'color': 0xFF0000
+            }]
+        }
 
     current_time = int(time.time() * 1000)
 
@@ -67,37 +73,60 @@ def format_map_status():
     active_events.sort(key=lambda x: x['endTime'])
     upcoming_events.sort(key=lambda x: x['startTime'])
 
-    lines = []
+    fields = []
 
     if active_events:
         end_time_seconds = active_events[0]['endTime'] // 1000
-        lines.append(f"ACTIVE NOW (ends <t:{end_time_seconds}:R>)")
 
         active_group = [active_events[0]]
         for event in active_events[1:]:
             if event['endTime'] == active_events[0]['endTime']:
                 active_group.append(event)
 
-        for event in active_group:
-            lines.append(f"> **{event['name']}** - {event['map']}")
-        lines.append("")
+        active_text = '\n'.join([f"**{event['name']}** - {event['map']}" for event in active_group])
+        fields.append({
+            'name': f'ACTIVE NOW (ends <t:{end_time_seconds}:R>)',
+            'value': active_text,
+            'inline': False
+        })
 
     if upcoming_events:
         start_time_seconds = upcoming_events[0]['startTime'] // 1000
-        lines.append(f"UP NEXT (starts <t:{start_time_seconds}:R>)")
 
         next_group = [upcoming_events[0]]
         for event in upcoming_events[1:]:
             if event['startTime'] == upcoming_events[0]['startTime']:
                 next_group.append(event)
 
-        for event in next_group:
-            lines.append(f"> **{event['name']}** - {event['map']}")
+        upcoming_text = '\n'.join([f"**{event['name']}** - {event['map']}" for event in next_group])
+        fields.append({
+            'name': f'UP NEXT (starts <t:{start_time_seconds}:R>)',
+            'value': upcoming_text,
+            'inline': False
+        })
 
     if not active_events and not upcoming_events:
-        return 'No active or upcoming events found.'
+        return {
+            'embeds': [{
+                'title': 'Arc Raiders Map Events',
+                'description': 'No active or upcoming events found.',
+                'color': 0x808080
+            }]
+        }
 
-    return '\n'.join(lines)
+    thumbnail_url = active_events[0]['icon'] if active_events else (upcoming_events[0]['icon'] if upcoming_events else None)
+
+    embed = {
+        'title': 'Arc Raiders Map Events',
+        'color': 0x00FF00 if active_events else 0xFFAA00,
+        'fields': fields,
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+    }
+
+    if thumbnail_url:
+        embed['thumbnail'] = {'url': thumbnail_url}
+
+    return {'embeds': [embed]}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -141,12 +170,10 @@ class handler(BaseHTTPRequestHandler):
 
         if interaction['type'] == 2:
             if interaction['data']['name'] == 'mapstatus':
-                message = format_map_status()
+                embed_data = format_map_status()
                 response = json.dumps({
                     'type': 4,
-                    'data': {
-                        'content': message
-                    }
+                    'data': embed_data
                 })
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
