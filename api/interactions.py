@@ -47,7 +47,7 @@ def get_events():
 
 
 def format_map_status():
-    """Format events into Discord embed"""
+    """Format events into Discord embeds with individual cards"""
     events = get_events()
 
     if not events:
@@ -73,44 +73,6 @@ def format_map_status():
     active_events.sort(key=lambda x: x['endTime'])
     upcoming_events.sort(key=lambda x: x['startTime'])
 
-    fields = []
-
-    if active_events:
-        end_time_seconds = active_events[0]['endTime'] // 1000
-
-        active_group = [active_events[0]]
-        for event in active_events[1:]:
-            if event['endTime'] == active_events[0]['endTime']:
-                active_group.append(event)
-
-        active_lines = []
-        for event in active_group:
-            active_lines.append(f"**{event['name']}** - {event['map']}")
-
-        fields.append({
-            'name': f'🟢 ACTIVE NOW (ends <t:{end_time_seconds}:R>)',
-            'value': '\n'.join(active_lines),
-            'inline': False
-        })
-
-    if upcoming_events:
-        start_time_seconds = upcoming_events[0]['startTime'] // 1000
-
-        next_group = [upcoming_events[0]]
-        for event in upcoming_events[1:]:
-            if event['startTime'] == upcoming_events[0]['startTime']:
-                next_group.append(event)
-
-        upcoming_lines = []
-        for event in next_group:
-            upcoming_lines.append(f"**{event['name']}** - {event['map']}")
-
-        fields.append({
-            'name': f'⏭️ UP NEXT (starts <t:{start_time_seconds}:R>)',
-            'value': '\n'.join(upcoming_lines),
-            'inline': False
-        })
-
     if not active_events and not upcoming_events:
         return {
             'embeds': [{
@@ -120,23 +82,61 @@ def format_map_status():
             }]
         }
 
-    first_event = active_events[0] if active_events else (upcoming_events[0] if upcoming_events else None)
+    embeds = []
 
-    embed = {
-        'title': 'Arc Raiders Map Events',
-        'color': 0x00D9FF,
-        'fields': fields,
-        'footer': {
-            'text': 'Data from MetaForge.app',
-            'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
-        },
-        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-    }
+    if active_events:
+        end_time_seconds = active_events[0]['endTime'] // 1000
 
-    if first_event and first_event.get('icon'):
-        embed['thumbnail'] = {'url': first_event['icon']}
+        active_group = [active_events[0]]
+        for event in active_events[1:]:
+            if event['endTime'] == active_events[0]['endTime']:
+                active_group.append(event)
 
-    return {'embeds': [embed]}
+        for i, event in enumerate(active_group[:5]):
+            embed = {
+                'color': 0x00FF00,
+                'author': {
+                    'name': f"🟢 ACTIVE NOW (ends <t:{end_time_seconds}:R>)" if i == 0 else "\u200b",
+                },
+                'title': event['name'],
+                'description': f"**Map:** {event['map']}",
+                'thumbnail': {'url': event['icon']},
+            }
+            if i == len(active_group) - 1 and not upcoming_events:
+                embed['footer'] = {
+                    'text': 'Data from MetaForge.app',
+                    'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
+                }
+                embed['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            embeds.append(embed)
+
+    if upcoming_events:
+        start_time_seconds = upcoming_events[0]['startTime'] // 1000
+
+        next_group = [upcoming_events[0]]
+        for event in upcoming_events[1:]:
+            if event['startTime'] == upcoming_events[0]['startTime']:
+                next_group.append(event)
+
+        for i, event in enumerate(next_group[:5]):
+            embed = {
+                'color': 0xFFAA00,
+                'author': {
+                    'name': f"⏭️ UP NEXT (starts <t:{start_time_seconds}:R>)" if i == 0 else "\u200b",
+                },
+                'title': event['name'],
+                'description': f"**Map:** {event['map']}",
+                'thumbnail': {'url': event['icon']},
+            }
+            if i == len(next_group) - 1:
+                embed['footer'] = {
+                    'text': 'Data from MetaForge.app',
+                    'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
+                }
+                embed['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+            embeds.append(embed)
+
+    return {'embeds': embeds[:10]}
 
 
 class handler(BaseHTTPRequestHandler):
