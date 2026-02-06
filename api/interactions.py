@@ -1,10 +1,10 @@
 import os
 import time
 import requests
-from flask import Request, Response
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import json
+from urllib.parse import parse_qs
 
 DISCORD_PUBLIC_KEY = os.environ.get('DISCORD_PUBLIC_KEY')
 METAFORGE_API = 'https://metaforge.app/api/arc-raiders/events-schedule'
@@ -100,50 +100,56 @@ def format_map_status():
     return '\n'.join(lines)
 
 
-def handler(request: Request) -> Response:
-    """Vercel serverless function handler"""
-    if request.method == 'GET':
-        return Response('Discord bot is running', status=200)
+def handler(environ, start_response):
+    """Vercel WSGI handler"""
+    method = environ.get('REQUEST_METHOD', 'GET')
 
-    if request.method == 'POST':
-        signature = request.headers.get('X-Signature-Ed25519')
-        timestamp = request.headers.get('X-Signature-Timestamp')
+    if method == 'GET':
+        start_response('200 OK', [('Content-Type', 'text/plain')])
+        return [b'Discord bot is running']
+
+    if method == 'POST':
+        headers = {
+            key[5:].replace('_', '-'): value
+            for key, value in environ.items()
+            if key.startswith('HTTP_')
+        }
+
+        signature = headers.get('X-SIGNATURE-ED25519')
+        timestamp = headers.get('X-SIGNATURE-TIMESTAMP')
 
         if not signature or not timestamp:
-            return Response('Missing signature headers', status=401)
+            start_response('401 Unauthorized', [('Content-Type', 'text/plain')])
+            return [b'Missing signature headers']
 
-        body = request.get_data(as_text=True)
+        content_length = int(environ.get('CONTENT_LENGTH', 0))
+        body = environ['wsgi.input'].read(content_length).decode('utf-8')
 
         if not verify_discord_signature(signature, timestamp, body):
-            return Response('Invalid signature', status=401)
+            start_response('401 Unauthorized', [('Content-Type', 'text/plain')])
+            return [b'Invalid signature']
 
-        interaction = request.get_json()
+        interaction = json.loads(body)
 
         if interaction['type'] == 1:
-            return Response(
-                json.dumps({'type': 1}),
-                status=200,
-                mimetype='application/json'
-            )
+            response = json.dumps({'type': 1})
+            start_response('200 OK', [('Content-Type', 'application/json')])
+            return [response.encode('utf-8')]
 
         if interaction['type'] == 2:
             if interaction['data']['name'] == 'mapstatus':
                 message = format_map_status()
-                return Response(
-                    json.dumps({
-                        'type': 4,
-                        'data': {
-                            'content': message
-                        }
-                    }),
-                    status=200,
-                    mimetype='application/json'
-                )
+                response = json.dumps({
+                    'type': 4,
+                    'data': {
+                        'content': message
+                    }
+                })
+                start_response('200 OK', [('Content-Type', 'application/json')])
+                return [response.encode('utf-8')]
 
-        return Response(
-            json.dumps({'error': 'Unknown interaction type'}),
-            status=400,
-            mimetype='application/json'
-        )
+        start_response('400 Bad Request', [('Content-Type', 'application/json')])
+        return [json.dumps({'error': 'Unknown interaction type'}).encode('utf-8')]
 
-    return Response('Method not allowed', status=405)
+    start_response('405 Method Not Allowed', [('Content-Type', 'text/plain')])
+    return [b'Method not allowed']
