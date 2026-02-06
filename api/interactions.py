@@ -47,7 +47,7 @@ def get_events():
 
 
 def format_map_status():
-    """Format events into Discord embeds with individual cards"""
+    """Format events into a single beautiful Discord embed"""
     events = get_events()
 
     if not events:
@@ -82,7 +82,7 @@ def format_map_status():
             }]
         }
 
-    embeds = []
+    fields = []
 
     if active_events:
         end_time_seconds = active_events[0]['endTime'] // 1000
@@ -92,23 +92,12 @@ def format_map_status():
             if event['endTime'] == active_events[0]['endTime']:
                 active_group.append(event)
 
-        for i, event in enumerate(active_group[:5]):
-            embed = {
-                'color': 0x00FF00,
-                'author': {
-                    'name': f"🟢 ACTIVE NOW (ends <t:{end_time_seconds}:R>)" if i == 0 else "\u200b",
-                },
-                'title': event['name'],
-                'description': f"**Map:** {event['map']}",
-                'thumbnail': {'url': event['icon']},
-            }
-            if i == len(active_group) - 1 and not upcoming_events:
-                embed['footer'] = {
-                    'text': 'Data from MetaForge.app',
-                    'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
-                }
-                embed['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-            embeds.append(embed)
+        for event in active_group:
+            fields.append({
+                'name': f"{event['name']}",
+                'value': f"📍 {event['map']}\n⏰ Ends <t:{end_time_seconds}:R>",
+                'inline': True
+            })
 
     if upcoming_events:
         start_time_seconds = upcoming_events[0]['startTime'] // 1000
@@ -118,25 +107,43 @@ def format_map_status():
             if event['startTime'] == upcoming_events[0]['startTime']:
                 next_group.append(event)
 
-        for i, event in enumerate(next_group[:5]):
-            embed = {
-                'color': 0xFFAA00,
-                'author': {
-                    'name': f"⏭️ UP NEXT (starts <t:{start_time_seconds}:R>)" if i == 0 else "\u200b",
-                },
-                'title': event['name'],
-                'description': f"**Map:** {event['map']}",
-                'thumbnail': {'url': event['icon']},
-            }
-            if i == len(next_group) - 1:
-                embed['footer'] = {
-                    'text': 'Data from MetaForge.app',
-                    'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
-                }
-                embed['timestamp'] = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
-            embeds.append(embed)
+        if active_events:
+            fields.append({'name': '\u200b', 'value': '\u200b', 'inline': False})
 
-    return {'embeds': embeds[:10]}
+        for event in next_group:
+            fields.append({
+                'name': f"{event['name']}",
+                'value': f"📍 {event['map']}\n⏰ Starts <t:{start_time_seconds}:R>",
+                'inline': True
+            })
+
+    first_active = active_events[0] if active_events else None
+    first_upcoming = upcoming_events[0] if upcoming_events else None
+    main_event = first_active if first_active else first_upcoming
+
+    description = ""
+    if active_events:
+        description += "🟢 **ACTIVE NOW**\n"
+    if upcoming_events:
+        if active_events:
+            description += "\n⏭️ **UP NEXT**"
+        else:
+            description += "⏭️ **UP NEXT**"
+
+    embed = {
+        'title': '🎯 Arc Raiders Map Events',
+        'description': description,
+        'color': 0x00D9FF,
+        'fields': fields,
+        'thumbnail': {'url': main_event['icon']} if main_event else None,
+        'footer': {
+            'text': 'Data from MetaForge.app',
+            'icon_url': 'https://cdn.metaforge.app/arc-raiders/custom/night.webp'
+        },
+        'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
+    }
+
+    return {'embeds': [embed]}
 
 
 class handler(BaseHTTPRequestHandler):
